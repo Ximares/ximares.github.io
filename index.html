@@ -1,470 +1,515 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Ximares — Coin Collect</title>
-
-<!-- Simple modern styling -->
-<style>
-  :root{
-    --bg:#0f1724;       /* deep navy */
-    --card:#0b1220;     /* darker card */
-    --accent:#ffcb6b;   /* warm gold for coins */
-    --muted:#9aa4b2;
-    --glass: rgba(255,255,255,0.04);
-    --radius:16px;
-    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-  }
-  html,body{height:100%; margin:0; background:linear-gradient(180deg,var(--bg) 0%, #071021 100%); color: #e6eef8; -webkit-font-smoothing:antialiased;}
-  .wrap{
-    min-height:100%;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    padding:32px;
-    box-sizing:border-box;
-    gap:24px;
-  }
-
-  .card{
-    background:linear-gradient(180deg,var(--card), #06111b);
-    border-radius:var(--radius);
-    padding:20px;
-    width:100%;
-    max-width:980px;
-    box-shadow: 0 10px 30px rgba(2,6,23,0.6);
-    display:grid;
-    grid-template-columns: 420px 1fr;
-    gap:18px;
-    align-items:start;
-  }
-
-  header h1{margin:0; font-size:20px; letter-spacing:0.2px;}
-  header p{margin:6px 0 0; color:var(--muted); font-size:13px}
-
-  .game-area{
-    background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
-    border-radius:12px;
-    padding:12px;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:10px;
-  }
-
-  canvas{
-    width:100%;
-    height:420px;
-    max-height:60vh;
-    background: linear-gradient(180deg,#0a1726,#06121a);
-    border-radius:10px;
-    display:block;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
-  }
-
-  .controls{display:flex; gap:8px; align-items:center; justify-content:center;}
-  .btn{background:var(--glass); color:var(--muted); border-radius:10px; padding:8px 12px; font-size:14px; border:1px solid rgba(255,255,255,0.03); cursor:pointer;}
-  .btn.primary{background: linear-gradient(90deg,#ffdd8a, #ffb84d); color:#071021; font-weight:600;}
-  .stats{display:flex; gap:10px; align-items:center; color:var(--muted); font-size:14px;}
-
-  .info{
-    padding:12px;
-    border-radius:10px;
-    background: linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
-    border:1px solid rgba(255,255,255,0.02);
-    color:var(--muted);
-    font-size:13px;
-  }
-
-  .col-right{display:flex; flex-direction:column; gap:12px;}
-  .small{font-size:12px; color:var(--muted);}
-
-  footer{grid-column:1/-1; text-align:center; color:var(--muted); font-size:12px; margin-top:6px;}
-
-  /* responsive */
-  @media (max-width:900px){
-    .card{grid-template-columns:1fr; max-width:760px;}
-    canvas{height:360px;}
-  }
-
-  .touch-hint{display:flex; gap:6px; align-items:center; font-size:13px; color:var(--muted)}
-  .kbd{background:#071021; padding:4px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.03); font-weight:600; color:#cfe7ff}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1, user-scalable=no" />
+  <title>Ximares — Coin Collect Idle Game</title>
+  <style>
+    :root {
+      --bg: #0f1724;
+      --card: #0b1220;
+      --accent: #ffcb6b;
+      --muted: #9aa4b2;
+      --glass: rgba(255,255,255,0.04);
+      --radius: 16px;
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: linear-gradient(180deg, var(--bg) 0%, #071021 100%);
+      color: #e6eef8;
+      font-family: system-ui, -apple-system, Roboto, Arial, sans-serif;
+      -webkit-user-select: none; /* prevent selection to help with touch drag */
+      overflow: hidden; /* prevent scrolling while playing */
+    }
+    .wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100%;
+      padding: 32px;
+      box-sizing: border-box;
+    }
+    .card {
+      background: linear-gradient(180deg, var(--card), #06111b);
+      border-radius: var(--radius);
+      padding: 20px;
+      width: 100%;
+      max-width: 960px;
+      box-shadow: 0 10px 30px rgba(2,6,23,0.6);
+      display: grid;
+      grid-template-columns: 480px 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 24px;
+    }
+    header p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .game-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+      padding: 12px;
+      border-radius: 12px;
+    }
+    canvas {
+      background: linear-gradient(180deg, #0a1726, #06121a);
+      border-radius: 10px;
+      width: 100%;
+      max-width: 100%;
+      height: 420px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+      touch-action: none; /* disable default touch actions like scrolling */
+    }
+    .controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn {
+      background: var(--glass);
+      color: var(--muted);
+      border: 1px solid rgba(255,255,255,0.03);
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .btn.primary {
+      background: linear-gradient(90deg, #ffdd8a, #ffb84d);
+      color: #071021;
+      font-weight: 600;
+    }
+    .stats {
+      display: flex;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .info {
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.02);
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .col-right {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    footer {
+      grid-column: 1 / -1;
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 12px;
+    }
+    .upgrade-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .upgrade-list li {
+      margin-bottom: 8px;
+    }
+    .upgrade-btn {
+      margin-left: 8px;
+      padding: 4px 8px;
+      background: var(--glass);
+      border: none;
+      border-radius: 6px;
+      color: var(--muted);
+      cursor: pointer;
+    }
+  </style>
 </head>
 <body>
-<div class="wrap">
-  <main class="card" aria-labelledby="title">
-    <div>
-      <header>
-        <h1 id="title">Ximares — Coin Collect</h1>
-        <p>Use Arrow keys / WASD or touch (on mobile). Collect coins, avoid obstacles. Small, fast, and accessible.</p>
-      </header>
+  <div class="wrap">
+    <div class="card">
+      <div>
+        <header>
+          <h1>Ximares — Coin Collect Idle</h1>
+          <p>Collect coins, get idle income, buy upgrades. Works on desktop & touch.</p>
+        </header>
 
-      <section class="game-area" aria-label="Game area">
-        <canvas id="game" width="800" height="480" role="img" aria-label="Coin collect game canvas"></canvas>
-
-        <div class="controls" aria-hidden="false">
-          <button id="startBtn" class="btn primary">Start / Restart</button>
-          <button id="pauseBtn" class="btn">Pause</button>
-          <div class="stats" aria-live="polite">
-            <div>Score: <strong id="score">0</strong></div>
-            <div>Lives: <strong id="lives">3</strong></div>
-            <div class="small">Time: <span id="time">0s</span></div>
+        <section class="game-area">
+          <canvas id="gameCanvas" width="800" height="480" role="img" aria-label="Game canvas"></canvas>
+          <div class="controls">
+            <button id="startBtn" class="btn primary">Start / Restart</button>
+            <button id="pauseBtn" class="btn">Pause</button>
+            <div class="stats">
+              <div>Score: <strong id="score">0</strong></div>
+              <div>Lives: <strong id="lives">0</strong></div>
+              <div>Time: <span id="time">0s</span></div>
+              <div>Banked: <span id="banked">0</span></div>
+            </div>
           </div>
+          <div class="info">
+            <strong>Upgrades</strong>
+            <ul id="upgradeList" class="upgrade-list"></ul>
+          </div>
+          <div class="info">
+            <strong>How to Play</strong>
+            <p>Move with arrow keys or WASD, or drag / tap on mobile. Collect coins, avoid hazards. Coins are added to your bank over time when idle.</p>
+          </div>
+        </section>
+      </div>
+
+      <aside class="col-right">
+        <div class="info">
+          <strong>Idle Element</strong>
+          <p>You gain passive coins each second based on your upgrades. These coins are "banked" and can be used for upgrades.</p>
         </div>
 
-        <div class="touch-hint small">
-          <div class="kbd">← ↑ → ↓</div>
-          <div>or WASD</div>
-          <div style="margin-left:12px">Touch: drag or tap to move</div>
+        <div class="info">
+          <strong>Upgrades Examples</strong>
+          <ul class="small">
+            <li>Auto-clicker: +1 coin/s</li>
+            <li>Speed Boost: + movement speed</li>
+            <li>Extra Life: +1 life</li>
+          </ul>
         </div>
-      </section>
+
+        <div class="info small">Be sure to replace the `audioSrc` and `musicSrc` with your real file URLs in the script below.</div>
+      </aside>
+
+      <footer>Made by Ximares — Idle version. Version 1.0</footer>
     </div>
+  </div>
 
-    <aside class="col-right">
-      <div class="info">
-        <strong>How to play</strong>
-        <p class="small">Move your character and collect gold coins. Each coin adds 10 points. Colliding with hazards costs a life. When lives reach 0 the game ends.</p>
-      </div>
+  <script>
+  (function(){
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let cw = canvas.width, ch = canvas.height;
 
-      <div class="info">
-        <strong>Improvements made</strong>
-        <ul class="small">
-          <li>Responsive canvas & touch support</li>
-          <li>Cleaner UI and modern styling</li>
-          <li>Refactored, readable JS with comments</li>
-        </ul>
-      </div>
+    // Game state
+    const state = {
+      running: false,
+      paused: false,
+      startTime: 0,
+      lastFrame: 0,
+      elapsed: 0,
+      score: 0,
+      lives: 3,
+      banked: 0,
+      player: { x: cw/2, y: ch/2, speed: 200, vx: 0, vy: 0, radius: 16 },
+      coins: [],
+      hazards: [],
+      keys: {},
+      lastCoinSpawn: 0,
+      lastHazardSpawn: 0,
+      upgradeData: [
+        { id: 'idle1', name: 'Auto-clicker', cost: 50, rate: 1, bought: 0 },
+        { id: 'speed', name: 'Speed Boost', cost: 200, speedMultiplier: 1.3, bought: 0 },
+        { id: 'life', name: 'Extra Life', cost: 500, lives: 1, bought: 0 }
+      ],
+      idleRate: 0 // coins per second
+    };
 
-      <div class="info small">This page is a single-file demo. To update on GitHub Pages, edit <code>index.html</code> in your repo or use GitHub Desktop / the GitHub web editor. :contentReference[oaicite:3]{index=3}</div>
-    </aside>
+    // Audio setup
+    const audio = new Audio();
+    const music = new Audio();
+    // TODO: put your actual audio URLS here:
+    audio.src = 'https://github.com/Ximares/ximares.github.io/raw/master/audio/ximares_sfx_coin2.mp3';  // coin pickup sound
+    music.src = 'https://github.com/Ximares/ximares.github.io/raw/master/audio/ximares_ost_game4.mp3';   // background music
+    music.loop = true;
+    music.volume = 0.5;
 
-    <footer>Made for Ximares — small demo. (Version 0.8.1 was previously shown on the site.)</footer>
-  </main>
-</div>
+    // DOM Elements
+    const startBtn = document.getElementById('startBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const scoreEl = document.getElementById('score');
+    const livesEl = document.getElementById('lives');
+    const timeEl = document.getElementById('time');
+    const bankedEl = document.getElementById('banked');
+    const upgradeListEl = document.getElementById('upgradeList');
 
-<!-- Game code -->
-<script>
-/*
-  Simple coin-collect game
-  - modular functions
-  - uses requestAnimationFrame
-  - supports keyboard + touch
-  - clean collision detection with circle math
-*/
+    // Helper functions
+    const rand = (min, max) => Math.random() * (max - min) + min;
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const dist2 = (a, b) => {
+      const dx = a.x - b.x, dy = a.y - b.y;
+      return dx*dx + dy*dy;
+    };
 
-/* ====== Config ====== */
-const CONFIG = {
-  PLAYER_RADIUS: 16,
-  COIN_RADIUS: 8,
-  HAZARD_RADIUS: 14,
-  INITIAL_LIVES: 3,
-  COIN_SCORE: 10,
-  COIN_SPAWN_INTERVAL: 1100, // ms
-  HAZARD_SPAWN_INTERVAL: 2500, // ms
-  MAX_COINS: 8,
-  MAX_HAZARDS: 4,
-};
-
-/* ====== Helpers ====== */
-const rand = (min, max) => Math.random() * (max - min) + min;
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const dist2 = (a,b) => {
-  const dx = a.x-b.x, dy = a.y-b.y; return dx*dx + dy*dy;
-}
-
-/* ====== Game state ====== */
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d', {alpha:false});
-let cw = canvas.width, ch = canvas.height;
-let scoreEl = document.getElementById('score');
-let livesEl = document.getElementById('lives');
-let timeEl = document.getElementById('time');
-let startBtn = document.getElementById('startBtn');
-let pauseBtn = document.getElementById('pauseBtn');
-
-let state = {
-  running: false,
-  paused: false,
-  t0: 0,
-  elapsed: 0,
-  lastCoinSpawn: 0,
-  lastHazardSpawn: 0,
-  score: 0,
-  lives: CONFIG.INITIAL_LIVES,
-  player: {x: cw/2, y: ch/2, vx:0, vy:0, speed: 250},
-  coins: [],
-  hazards: [],
-  keys: {}
-};
-
-/* ====== Resize handling (keeps canvas crisp) ====== */
-function resizeCanvas(){
-  // Use CSS size but keep internal resolution for crispness
-  const ratio = window.devicePixelRatio || 1;
-  const rectW = Math.min(900, Math.max(320, window.innerWidth - 64));
-  const rectH = Math.min(640, Math.max(320, window.innerHeight * 0.55));
-  canvas.style.width = rectW + 'px';
-  canvas.style.height = rectH + 'px';
-  cw = Math.round(rectW * ratio);
-  ch = Math.round(rectH * ratio);
-  canvas.width = cw;
-  canvas.height = ch;
-  // scale context so draw code uses logical pixels
-  ctx.setTransform(ratio,0,0,ratio,0,0);
-}
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
-
-/* ====== Input ====== */
-window.addEventListener('keydown', (e)=>{
-  state.keys[e.key.toLowerCase()] = true;
-});
-window.addEventListener('keyup', (e)=>{
-  state.keys[e.key.toLowerCase()] = false;
-});
-
-// Basic touch: drag or tap to move
-let touchActive = false;
-canvas.addEventListener('pointerdown', (e)=>{
-  touchActive = true;
-  movePlayerToPointer(e);
-});
-canvas.addEventListener('pointermove', (e)=>{ if(touchActive) movePlayerToPointer(e); });
-canvas.addEventListener('pointerup', ()=>{ touchActive = false; });
-
-function movePlayerToPointer(e){
-  const rect = canvas.getBoundingClientRect();
-  const x = (e.clientX - rect.left);
-  const y = (e.clientY - rect.top);
-  state.player.x = clamp(x, CONFIG.PLAYER_RADIUS, rect.width - CONFIG.PLAYER_RADIUS);
-  state.player.y = clamp(y, CONFIG.PLAYER_RADIUS, rect.height - CONFIG.PLAYER_RADIUS);
-}
-
-/* ====== Spawn helpers ====== */
-function spawnCoin(){
-  if(state.coins.length >= CONFIG.MAX_COINS) return;
-  const margin = 30;
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  const coin = {
-    x: rand(margin, w - margin),
-    y: rand(margin, h - margin),
-    r: CONFIG.COIN_RADIUS,
-    createdAt: performance.now()
-  };
-  state.coins.push(coin);
-}
-
-function spawnHazard(){
-  if(state.hazards.length >= CONFIG.MAX_HAZARDS) return;
-  const margin = 30;
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  const hazard = {
-    x: rand(margin, w - margin),
-    y: rand(margin, h - margin),
-    r: CONFIG.HAZARD_RADIUS,
-    vx: rand(-80,80),
-    vy: rand(-80,80),
-  };
-  state.hazards.push(hazard);
-}
-
-/* ====== Game lifecycle ====== */
-function startGame(){
-  state.running = true;
-  state.paused = false;
-  state.t0 = performance.now();
-  state.elapsed = 0;
-  state.score = 0;
-  state.lives = CONFIG.INITIAL_LIVES;
-  state.coins = [];
-  state.hazards = [];
-  state.player = {x: canvas.clientWidth/2, y: canvas.clientHeight/2, vx:0, vy:0, speed: 250};
-  state.lastCoinSpawn = 0;
-  state.lastHazardSpawn = 0;
-  scoreEl.textContent = state.score;
-  livesEl.textContent = state.lives;
-  timeEl.textContent = '0s';
-  requestAnimationFrame(loop);
-}
-
-function pauseGame(){
-  if(!state.running) return;
-  state.paused = !state.paused;
-  pauseBtn.textContent = state.paused ? 'Resume' : 'Pause';
-  if(!state.paused) {
-    // resume time reference
-    state.t0 = performance.now() - state.elapsed;
-    requestAnimationFrame(loop);
-  }
-}
-
-startBtn.addEventListener('click', startGame);
-pauseBtn.addEventListener('click', pauseGame);
-
-/* ====== Game mechanics ====== */
-
-function handleInput(dt){
-  const p = state.player;
-  let dx=0, dy=0;
-  if(state.keys['arrowleft'] || state.keys['a']) dx -= 1;
-  if(state.keys['arrowright'] || state.keys['d']) dx += 1;
-  if(state.keys['arrowup'] || state.keys['w']) dy -= 1;
-  if(state.keys['arrowdown'] || state.keys['s']) dy += 1;
-  if(dx!==0 || dy!==0){
-    const len = Math.hypot(dx,dy);
-    p.x += (dx/len) * p.speed * dt;
-    p.y += (dy/len) * p.speed * dt;
-    // clamp to visible area (CSS pixels)
-    p.x = clamp(p.x, CONFIG.PLAYER_RADIUS, canvas.clientWidth - CONFIG.PLAYER_RADIUS);
-    p.y = clamp(p.y, CONFIG.PLAYER_RADIUS, canvas.clientHeight - CONFIG.PLAYER_RADIUS);
-  }
-}
-
-function updateEntities(dt){
-  // hazards drift and bounce
-  for(const h of state.hazards){
-    h.x += h.vx * dt;
-    h.y += h.vy * dt;
-    if(h.x < h.r || h.x > canvas.clientWidth - h.r) h.vx *= -1;
-    if(h.y < h.r || h.y > canvas.clientHeight - h.r) h.vy *= -1;
-  }
-}
-
-function checkCollisions(){
-  const p = state.player;
-  // coins
-  for(let i = state.coins.length-1; i>=0; i--){
-    const c = state.coins[i];
-    const minD = (CONFIG.PLAYER_RADIUS + c.r);
-    if(dist2(p, c) <= minD*minD){
-      // collect
-      state.coins.splice(i,1);
-      state.score += CONFIG.COIN_SCORE;
-      scoreEl.textContent = state.score;
-      // small feedback (flash)
-      flashScreen();
+    function resize() {
+      const ratio = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      cw = rect.width * ratio;
+      ch = rect.height * ratio;
+      canvas.width = cw;
+      canvas.height = ch;
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     }
-  }
-  // hazards
-  for(let i=state.hazards.length-1; i>=0; i--){
-    const h = state.hazards[i];
-    const minD = (CONFIG.PLAYER_RADIUS + h.r);
-    if(dist2(p, h) <= minD*minD){
-      // hit
-      state.hazards.splice(i,1);
-      state.lives -= 1;
+    window.addEventListener('resize', resize);
+    resize();
+
+    // Input
+    window.addEventListener('keydown', e => {
+      state.keys[e.key.toLowerCase()] = true;
+    });
+    window.addEventListener('keyup', e => {
+      state.keys[e.key.toLowerCase()] = false;
+    });
+
+    let touching = false;
+    canvas.addEventListener('pointerdown', e => {
+      touching = true;
+      movePlayer(e);
+    });
+    canvas.addEventListener('pointermove', e => {
+      if (touching) movePlayer(e);
+    });
+    window.addEventListener('pointerup', () => {
+      touching = false;
+    });
+
+    function movePlayer(e) {
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left);
+      const y = (e.clientY - rect.top);
+      state.player.x = clamp(x, state.player.radius, rect.width - state.player.radius);
+      state.player.y = clamp(y, state.player.radius, rect.height - state.player.radius);
+    }
+
+    // Spawning
+    function spawnCoin() {
+      const margin = 30;
+      const c = {
+        x: rand(margin, canvas.clientWidth - margin),
+        y: rand(margin, canvas.clientHeight - margin),
+        r: 8
+      };
+      state.coins.push(c);
+    }
+    function spawnHazard() {
+      const margin = 30;
+      const h = {
+        x: rand(margin, canvas.clientWidth - margin),
+        y: rand(margin, canvas.clientHeight - margin),
+        r: 14,
+        vx: rand(-60, 60),
+        vy: rand(-60, 60)
+      };
+      state.hazards.push(h);
+    }
+
+    // Upgrades UI & logic
+    function renderUpgrades() {
+      upgradeListEl.innerHTML = '';
+      state.upgradeData.forEach(upg => {
+        const li = document.createElement('li');
+        li.textContent = `${upg.name} (Cost: ${upg.cost}, Owned: ${upg.bought})`;
+        const btn = document.createElement('button');
+        btn.textContent = 'Buy';
+        btn.classList.add('upgrade-btn');
+        btn.disabled = state.banked < upg.cost;
+        btn.onclick = () => buyUpgrade(upg.id);
+        li.appendChild(btn);
+        upgradeListEl.appendChild(li);
+      });
+    }
+
+    function buyUpgrade(id) {
+      const upg = state.upgradeData.find(u => u.id === id);
+      if (!upg || state.banked < upg.cost) return;
+      state.banked -= upg.cost;
+      upg.bought += 1;
+      // apply effect
+      if (upg.id === 'idle1') {
+        state.idleRate += upg.rate;
+      } else if (upg.id === 'speed') {
+        state.player.speed *= upg.speedMultiplier;
+      } else if (upg.id === 'life') {
+        state.lives += upg.lives;
+      }
+      renderUpgrades();
+      updateStats();
+    }
+
+    // Game start / pause
+    function startGame() {
+      state.running = true;
+      state.paused = false;
+      state.startTime = performance.now();
+      state.lastFrame = state.startTime;
+      state.elapsed = 0;
+      state.score = 0;
+      state.lives = 3;
+      state.banked = 0;
+      state.coins = [];
+      state.hazards = [];
+      state.lastCoinSpawn = 0;
+      state.lastHazardSpawn = 0;
+      state.idleRate = state.upgradeData.find(u => u.id === 'idle1').bought * state.upgradeData.find(u => u.id === 'idle1').rate;
+
+      scoreEl.textContent = state.score;
       livesEl.textContent = state.lives;
-      flashScreen('danger');
-      if(state.lives <= 0){
-        endGame();
+      bankedEl.textContent = state.banked;
+      timeEl.textContent = '0s';
+
+      renderUpgrades();
+
+      music.currentTime = 0;
+      music.play().catch(() => {/* maybe user hasn't interacted yet */});
+      requestAnimationFrame(gameLoop);
+    }
+
+    function pauseGame() {
+      state.paused = !state.paused;
+      pauseBtn.textContent = state.paused ? 'Resume' : 'Pause';
+      if (!state.paused) {
+        state.lastFrame = performance.now();
+        requestAnimationFrame(gameLoop);
+      } else {
+        music.pause();
       }
     }
-  }
-}
 
-/* ====== Visuals ====== */
-let flashTimer = 0;
-function flashScreen(type='ok'){
-  flashTimer = 10; // frames
-}
-function draw(){
-  // background
-  ctx.clearRect(0,0,canvas.clientWidth, canvas.clientHeight);
+    startBtn.addEventListener('click', startGame);
+    pauseBtn.addEventListener('click', pauseGame);
 
-  // subtle grid background
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  // sky gradient rectangle is achieved by CSS; we draw game elements on top
+    // Collision
+    function checkCollisions() {
+      const p = state.player;
+      // coins
+      for (let i = state.coins.length - 1; i >= 0; i--) {
+        const c = state.coins[i];
+        const minD = p.radius + c.r;
+        if (dist2(p, c) <= minD * minD) {
+          state.coins.splice(i, 1);
+          state.score += 10;
+          state.banked += 10; // idle bank
+          audio.currentTime = 0;
+          audio.play();
+          updateStats();
+        }
+      }
+      // hazards
+      for (let i = state.hazards.length - 1; i >= 0; i--) {
+        const h = state.hazards[i];
+        const minD = p.radius + h.r;
+        if (dist2(p, h) <= minD * minD) {
+          state.hazards.splice(i, 1);
+          state.lives -= 1;
+          updateStats();
+          if (state.lives <= 0) {
+            endGame();
+          }
+        }
+      }
+    }
 
-  // draw coins
-  for(const c of state.coins){
-    ctx.beginPath();
-    ctx.arc(c.x, c.y, c.r, 0, Math.PI*2);
-    ctx.fillStyle = 'rgba(255,200,80,0.95)';
-    ctx.fill();
-    ctx.closePath();
-    // coin shine
-    ctx.beginPath();
-    ctx.arc(c.x - c.r*0.35, c.y - c.r*0.35, c.r*0.4, 0, Math.PI*2);
-    ctx.fillStyle = 'rgba(255,255,255,0.35)';
-    ctx.fill();
-  }
+    // Update
+    function update(dt) {
+      // input movement
+      const p = state.player;
+      let dx = 0, dy = 0;
+      if (state.keys['arrowleft'] || state.keys['a']) dx -= 1;
+      if (state.keys['arrowright'] || state.keys['d']) dx += 1;
+      if (state.keys['arrowup'] || state.keys['w']) dy -= 1;
+      if (state.keys['arrowdown'] || state.keys['s']) dy += 1;
+      if (dx !== 0 || dy !== 0) {
+        const len = Math.hypot(dx, dy);
+        p.x += (dx / len) * p.speed * dt;
+        p.y += (dy / len) * p.speed * dt;
+      }
 
-  // draw hazards
-  for(const h of state.hazards){
-    ctx.beginPath();
-    ctx.arc(h.x, h.y, h.r, 0, Math.PI*2);
-    ctx.fillStyle = 'rgba(220,80,80,0.95)';
-    ctx.fill();
-  }
+      // hazards move
+      state.hazards.forEach(h => {
+        h.x += h.vx * dt;
+        h.y += h.vy * dt;
+        if (h.x < h.r || h.x > canvas.clientWidth - h.r) h.vx *= -1;
+        if (h.y < h.r || h.y > canvas.clientHeight - h.r) h.vy *= -1;
+      });
 
-  // draw player
-  const p = state.player;
-  ctx.beginPath();
-  ctx.arc(p.x, p.y, CONFIG.PLAYER_RADIUS, 0, Math.PI*2);
-  ctx.fillStyle = 'rgba(120,200,255,0.95)';
-  ctx.fill();
-  // eyes (simple)
-  ctx.fillStyle = '#071021';
-  ctx.beginPath(); ctx.arc(p.x-6, p.y-4, 3,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(p.x+4, p.y-4, 3,0,Math.PI*2); ctx.fill();
+      // idle banking
+      state.banked += state.idleRate * dt;
 
-  // optional flash effect
-  if(flashTimer>0){
-    ctx.fillStyle = 'rgba(255,255,255,0.06)';
-    ctx.fillRect(0,0,w,h);
-    flashTimer--;
-  }
-}
+      // spawn logic
+      const now = performance.now();
+      if (now - state.lastCoinSpawn > 1000) {
+        spawnCoin();
+        state.lastCoinSpawn = now;
+      }
+      if (now - state.lastHazardSpawn > 2500) {
+        spawnHazard();
+        state.lastHazardSpawn = now;
+      }
 
-/* ====== End game ====== */
-function endGame(){
-  state.running = false;
-  // show a simple alert overlay
-  setTimeout(()=>{
-    alert('Game over — your score: ' + state.score);
-  }, 50);
-}
+      checkCollisions();
+    }
 
-/* ====== Main loop ====== */
-let lastFrame = 0;
-function loop(now){
-  if(!state.running || state.paused) return;
-  if(!lastFrame) lastFrame = now;
-  const dt = Math.min(0.05, (now - lastFrame) / 1000); // clamp large dt
-  lastFrame = now;
+    // Draw
+    function draw() {
+      ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
 
-  // time bookkeeping
-  state.elapsed = now - state.t0;
-  timeEl.textContent = Math.floor(state.elapsed / 1000) + 's';
+      // draw coins
+      state.coins.forEach(c => {
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,200,80,0.95)';
+        ctx.fill();
+      });
 
-  // spawn logic
-  if(now - state.lastCoinSpawn > CONFIG.COIN_SPAWN_INTERVAL){
-    spawnCoin();
-    state.lastCoinSpawn = now;
-  }
-  if(now - state.lastHazardSpawn > CONFIG.HAZARD_SPAWN_INTERVAL){
-    spawnHazard();
-    state.lastHazardSpawn = now;
-  }
+      // draw hazards
+      state.hazards.forEach(h => {
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(220,80,80,0.95)';
+        ctx.fill();
+      });
 
-  handleInput(dt);
-  updateEntities(dt);
-  checkCollisions();
-  draw();
+      // draw player
+      const p = state.player;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(120,200,255,0.95)';
+      ctx.fill();
+    }
 
-  requestAnimationFrame(loop);
-}
+    function updateStats() {
+      scoreEl.textContent = Math.floor(state.score);
+      livesEl.textContent = state.lives;
+      bankedEl.textContent = Math.floor(state.banked);
+    }
 
-/* ====== Small improvement: preload a few coins so game isn't empty on start ====== */
-startBtn.addEventListener('click', () => {
-  // spawn a few coins immediately
-  for(let i=0;i<4;i++) spawnCoin();
-});
+    function endGame() {
+      state.running = false;
+      music.pause();
+      alert(`Game Over! Final score: ${Math.floor(state.score)}, Banked: ${Math.floor(state.banked)}`);
+    }
 
-/* ====== Friendly fallback: if JS disabled, show text (this code won't run) ====== */
-</script>
+    function gameLoop(timestamp) {
+      if (!state.running || state.paused) return;
+      const dt = Math.min(0.1, (timestamp - state.lastFrame) / 1000);
+      state.lastFrame = timestamp;
+      state.elapsed = timestamp - state.startTime;
+      timeEl.textContent = `${Math.floor(state.elapsed / 1000)}s`;
 
+      update(dt);
+      draw();
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // Initial UI
+    renderUpgrades();
+    updateStats();
+
+  })();
+  </script>
 </body>
 </html>
