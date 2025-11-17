@@ -173,7 +173,7 @@
     cursor:pointer;
   }
 
-  /* bottom-sheet style upgrades for small screens */
+  /* bottom-sheet upgrades for smaller screens */
   @media (max-width:800px){
     .card{
       grid-template-columns:minmax(0,1fr);
@@ -182,17 +182,16 @@
     }
     .col-right{
       position:fixed;
-      left:0;right:0;
+      left:0;
+      right:0;
       bottom:0;
       z-index:9000;
-      pointer-events:none; /* allow clicks only when open */
     }
     .upgrades-panel{
-      pointer-events:auto;
-      max-height:40vh;
-      transform:translateY(100%);
-      transition:transform 0.2s ease-out;
+      max-height:45vh;
       margin:0 10px 10px;
+      transition:transform 0.2s ease-out;
+      transform:translateY(100%);
     }
     .upgrades-panel.open{
       transform:translateY(0%);
@@ -202,6 +201,9 @@
   @media (min-width:801px){
     #toggleUpgrades{
       display:none;
+    }
+    .upgrades-panel{
+      transform:none !important;
     }
   }
 </style>
@@ -214,7 +216,7 @@
     <div>
       <header>
         <h1 id="title">Ximares — Coin Collect Idle (8-bit Funk)</h1>
-        <p>Collect coins, build towers and upgrades. Chiptune music, anime :3 hero, and idle coins.</p>
+        <p>Collect coins, build towers and idle upgrades. Funky 8-bit loop, anime :3 hero, and incremental-style progress.</p>
       </header>
 
       <section class="game-area" aria-label="Game">
@@ -236,9 +238,8 @@
         <div class="info">
           <strong>How to play</strong>
           <p style="margin:4px 0 0">
-            Move with Arrow keys / WASD or drag / tap. Collect coins (+10), avoid enemies. Idle upgrades give passive coins.
-            Towers shoot enemies — tougher enemies need multiple hits.
-            Press <b>U</b> or tap <b>Upgrades</b> to open the upgrades panel.
+            Move with Arrow keys / WASD or drag/tap. Collect coins (+10), avoid enemies. Idle upgrades give passive coins.
+            Towers shoot enemies — tougher enemies need multiple hits. Press <b>U</b> or tap <b>Upgrades</b> to open the upgrades panel.
           </p>
         </div>
       </section>
@@ -253,7 +254,7 @@
       </section>
     </aside>
 
-    <footer>Made for Ximares — Version 1.2 (8-bit, towers, HP & trails).</footer>
+    <footer>Made for Ximares — Version 1.3 (funky loop, incremental upgrades, towers & HP).</footer>
   </main>
 </div>
 
@@ -274,17 +275,21 @@
   const timeEl = document.getElementById('time');
   const bankedEl = document.getElementById('banked');
 
-  /*** AUDIO (Web Audio 8-bit Funk) ***/
+  /*** AUDIO (8-bit FUNKY LOOP) ***/
   const AudioContext = window.AudioContext || window.webkitAudioContext;
   let audioCtx = null;
-  let musicGain, masterGain;
+  let masterGain = null;
+  let musicGain = null;
+  let musicBassOsc = null;
+  let musicLeadOsc = null;
+  let musicStep = 0;
   let musicInterval = null;
-  let musicVoices = [];
   let muted = false;
 
   function initAudio() {
     if (audioCtx) return;
     audioCtx = new AudioContext();
+
     masterGain = audioCtx.createGain();
     masterGain.gain.value = 0.6;
     masterGain.connect(audioCtx.destination);
@@ -293,59 +298,108 @@
     musicGain.gain.value = 0.4;
     musicGain.connect(masterGain);
 
-    create8bitMusic();
+    createFunkyMusic();
   }
 
-  // Simple 8-bit funk: square wave bass + lead arpeggio
-  function create8bitMusic() {
-    // basic pentatonic scale frequencies
-    const base = 110; // A2-ish bass
-    const scale = [1, 1.25, 1.5, 2, 2.5]; // simple ratios
-    // create two oscillators: bass + lead
-    const bassOsc = audioCtx.createOscillator();
-    bassOsc.type = 'square';
-    const bassGain = audioCtx.createGain();
-    bassGain.gain.value = 0.18;
-    bassOsc.connect(bassGain).connect(musicGain);
-    bassOsc.start();
+  // 4-bar loop: Gmin9 (2 bars), A7, D7
+  // Step length ~0.36s, 16 steps => ~5.76s loop (~4× older one)
+  function createFunkyMusic() {
+    if (!audioCtx) return;
 
-    const leadOsc = audioCtx.createOscillator();
-    leadOsc.type = 'square';
+    if (musicInterval) {
+      clearInterval(musicInterval);
+      musicInterval = null;
+    }
+
+    // Remove previous oscillators if any
+    if (musicBassOsc) { musicBassOsc.stop(); musicBassOsc.disconnect(); }
+    if (musicLeadOsc) { musicLeadOsc.stop(); musicLeadOsc.disconnect(); }
+
+    musicBassOsc = audioCtx.createOscillator();
+    musicBassOsc.type = 'square';
+    const bassGain = audioCtx.createGain();
+    bassGain.gain.value = 0.22;
+    musicBassOsc.connect(bassGain).connect(musicGain);
+    musicBassOsc.start();
+
+    musicLeadOsc = audioCtx.createOscillator();
+    musicLeadOsc.type = 'square';
     const leadGain = audioCtx.createGain();
     leadGain.gain.value = 0.12;
-    leadOsc.connect(leadGain).connect(musicGain);
-    leadOsc.start();
+    musicLeadOsc.connect(leadGain).connect(musicGain);
+    musicLeadOsc.start();
 
-    musicVoices = [ {osc:bassOsc,gain:bassGain}, {osc:leadOsc,gain:leadGain} ];
+    const stepMs = 360;
+    musicStep = 0;
 
-    // step through a pattern every 180ms
-    const bassPattern = [0,0,2,0, 3,0,1,0];
-    const leadPattern = [4,3,2,1, 2,3,4,1];
-    let step = 0;
+    const G2 = 98.0;
+    const A2 = 110.0;
+    const D2 = 73.42;
 
-    if (musicInterval) clearInterval(musicInterval);
+    function chordInfo(step) {
+      const bar = Math.floor(step / 4); // 0,1,2,3
+      if (bar === 0 || bar === 1) return { root: G2, type: 'min9' };
+      if (bar === 2) return { root: A2, type: 'dom7' };
+      return { root: D2, type: 'dom7' };
+    }
+
+    function chordTones(root, type) {
+      if (type === 'min9') {
+        // roughly Gmin9: G, Bb, D, F, A
+        return [
+          root,            // G
+          root*6/5,        // Bb
+          root*3/2,        // D
+          root*8/5,        // F-ish
+          root*9/5         // A-ish
+        ];
+      } else {
+        // dom7: A7 or D7 -> R, 3, 5, b7
+        return [
+          root,
+          root*5/4,       // major 3rd
+          root*3/2,       // 5th
+          root*7/4        // b7-ish
+        ];
+      }
+    }
+
     musicInterval = setInterval(() => {
       if (!audioCtx || audioCtx.state !== 'running') return;
-      const tNow = audioCtx.currentTime;
+      const now = audioCtx.currentTime;
+      const { root, type } = chordInfo(musicStep);
+      const tones = chordTones(root, type);
 
-      const bi = bassPattern[step % bassPattern.length];
-      const li = leadPattern[step % leadPattern.length];
+      // "swingy" bass: hit root then 5th, emphasize beats 1 & 3
+      const stepInBar = musicStep % 4; // 0..3
+      const isDownbeat = (stepInBar === 0 || stepInBar === 2);
 
-      bassOsc.frequency.setValueAtTime(base*scale[bi], tNow);
+      const bassFreq = isDownbeat ? root : tones[2]; // root or 5th
+      musicBassOsc.frequency.setValueAtTime(bassFreq, now);
 
-      // small envelope for lead for 8-bit plucky effect
-      leadGain.gain.cancelScheduledValues(tNow);
-      leadGain.gain.setValueAtTime(0.001, tNow);
-      leadGain.gain.exponentialRampToValueAtTime(0.16, tNow+0.01);
-      leadGain.gain.exponentialRampToValueAtTime(0.01, tNow+0.17);
-      leadOsc.frequency.setValueAtTime(base*2*scale[li], tNow);
+      // little envelope for bass on downbeats
+      const bassAccentGain = (isDownbeat ? 1.3 : 0.8);
+      bassGain.gain.cancelScheduledValues(now);
+      bassGain.gain.setValueAtTime(0.08, now);
+      bassGain.gain.linearRampToValueAtTime(0.22*bassAccentGain, now+0.02);
+      bassGain.gain.linearRampToValueAtTime(0.10, now+0.28);
 
-      step++;
-    }, 180);
+      // lead arpeggio across chord tones
+      const toneIndex = musicStep % tones.length;
+      const leadFreq = tones[toneIndex] * 2; // up an octave
+      musicLeadOsc.frequency.setValueAtTime(leadFreq, now);
+      // plucky envelope
+      leadGain.gain.cancelScheduledValues(now);
+      leadGain.gain.setValueAtTime(0.001, now);
+      leadGain.gain.exponentialRampToValueAtTime(0.16, now+0.015);
+      leadGain.gain.exponentialRampToValueAtTime(0.01, now+0.26);
+
+      musicStep = (musicStep + 1) % 16;
+    }, stepMs);
   }
 
-  function setMusicMuted(m) {
-    muted = m;
+  function setMusicMuted(value) {
+    muted = value;
     if (!musicGain) return;
     musicGain.gain.value = muted ? 0 : 0.4;
     muteBtn.textContent = muted ? 'Unmute Music' : 'Mute Music';
@@ -357,8 +411,8 @@
     const osc = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     osc.type = 'square';
-    osc.frequency.setValueAtTime(1200, t);
-    osc.frequency.exponentialRampToValueAtTime(400, t+0.12);
+    osc.frequency.setValueAtTime(1400, t);
+    osc.frequency.exponentialRampToValueAtTime(500, t+0.12);
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(0.3, t+0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, t+0.18);
@@ -373,14 +427,14 @@
     const osc = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     osc.type = 'triangle';
-    osc.frequency.setValueAtTime(500, t);
-    osc.frequency.linearRampToValueAtTime(260, t+0.12);
+    osc.frequency.setValueAtTime(520, t);
+    osc.frequency.linearRampToValueAtTime(260, t+0.1);
     g.gain.setValueAtTime(0.001, t);
     g.gain.exponentialRampToValueAtTime(0.22, t+0.01);
-    g.gain.exponentialRampToValueAtTime(0.001, t+0.16);
+    g.gain.exponentialRampToValueAtTime(0.001, t+0.14);
     osc.connect(g).connect(masterGain);
     osc.start(t);
-    osc.stop(t+0.18);
+    osc.stop(t+0.16);
   }
 
   /*** SCROLL TOGGLE ***/
@@ -427,26 +481,32 @@
     hazards:[],
     towers:[],
     arrows:[],
+    trail:[],
     keys:{},
     lastCoinSpawn:0,
     lastHazardSpawn:0,
 
     idleRate:0,
+    coinMultiplier:1,
+    hazardRewardMultiplier:1,
     towerFireRate:1.0,
     towerProjectileSpeed:320,
     towerRange:180,
 
-    // for after-image trail
-    trail:[],
+    nextAutoTowerTime:0, // for incremental auto tower upgrade
 
     upgrades:[
-      { id:'idle1', name:'Idle income +1/s', cost:50, type:'idle', amount:1 },
-      { id:'speed1', name:'Speed ×1.25', cost:120, type:'speed', factor:1.25 },
-      { id:'life1', name:'Extra Life +1', cost:200, type:'life', amount:1 },
-      { id:'tower1', name:'Buy tower', cost:300, type:'tower' },
-      { id:'firerate1', name:'Tower fire rate +20%', cost:180, type:'firerate', factor:1.2 },
-      { id:'proj1', name:'Projectile speed +20%', cost:150, type:'projSpeed', factor:1.2 },
-      { id:'range1', name:'Tower range +20%', cost:200, type:'range', factor:1.2 }
+      { id:'idle1',     name:'Idle income +1/s',         cost: 50,  type:'idle',      amount:1 },
+      { id:'idle2',     name:'Idle income +5/s',         cost:200,  type:'idle',      amount:5 },
+      { id:'speed1',    name:'Speed ×1.25',              cost:120,  type:'speed',     factor:1.25 },
+      { id:'life1',     name:'Extra Life +1',            cost:200,  type:'life',      amount:1 },
+      { id:'tower1',    name:'Buy tower',                cost:300,  type:'tower' },
+      { id:'firerate1', name:'Tower fire rate +20%',     cost:180,  type:'firerate',  factor:1.2 },
+      { id:'proj1',     name:'Projectile speed +20%',    cost:150,  type:'projSpeed', factor:1.2 },
+      { id:'range1',    name:'Tower range +20%',         cost:200,  type:'range',     factor:1.2 },
+      { id:'value1',    name:'Coin value ×2',            cost:400,  type:'coinMult',  factor:2 },
+      { id:'bounty1',   name:'Enemy bounty ×2',          cost:350,  type:'bounty',    factor:2 },
+      { id:'autotower', name:'Auto tower factory',       cost:600,  type:'autoTower' }
     ]
   };
 
@@ -475,22 +535,25 @@
 
   /*** INPUT ***/
   window.addEventListener('keydown', e=>{
-    state.keys[e.key.toLowerCase()] = true;
-    if (e.key.toLowerCase() === 'u') toggleUpgrades();
+    const k = e.key.toLowerCase();
+    state.keys[k] = true;
+    if (k === 'u') {
+      toggleUpgrades();
+    }
   });
   window.addEventListener('keyup', e=>{
     state.keys[e.key.toLowerCase()] = false;
   });
 
   let pointerActive = false;
-  canvas.addEventListener('pointerdown', (e)=>{
+  canvas.addEventListener('pointerdown', e=>{
     if (!audioCtx) { initAudio(); audioCtx.resume && audioCtx.resume().catch(()=>{}); }
     if (!scrollingEnabled){
       pointerActive = true;
       movePlayerToPointer(e);
     }
   }, {passive:false});
-  canvas.addEventListener('pointermove', (e)=>{
+  canvas.addEventListener('pointermove', e=>{
     if (pointerActive && !scrollingEnabled){
       movePlayerToPointer(e);
       e.preventDefault();
@@ -523,9 +586,9 @@
     if (roll < 0.6){
       hp = 1; radius = 14; color = '#ff4b4b'; // basic red
     } else if (roll < 0.9){
-      hp = 2; radius = 16; color = '#ff9f43'; // tougher orange
+      hp = 2; radius = 16; color = '#ff9f43'; // orange 2 HP
     } else {
-      hp = 3; radius = 18; color = '#a855f7'; // tank purple
+      hp = 3; radius = 18; color = '#a855f7'; // purple 3 HP
     }
     state.hazards.push({
       x:rand(radius,r.width-radius),
@@ -551,7 +614,7 @@
       btn.className = 'upgrade-btn';
       btn.textContent = 'Buy';
       btn.disabled = Math.floor(state.banked) < upg.cost;
-      btn.addEventListener('click',()=>buyUpgrade(upg));
+      btn.addEventListener('click', ()=>buyUpgrade(upg));
       right.appendChild(btn);
       li.appendChild(left);
       li.appendChild(right);
@@ -562,6 +625,7 @@
   function buyUpgrade(upg){
     if (Math.floor(state.banked) < upg.cost) return;
     state.banked -= upg.cost;
+
     switch(upg.type){
       case 'idle':
         state.idleRate += upg.amount;
@@ -588,24 +652,47 @@
       case 'range':
         state.towerRange *= upg.factor;
         break;
+      case 'coinMult':
+        state.coinMultiplier *= upg.factor;
+        break;
+      case 'bounty':
+        state.hazardRewardMultiplier *= upg.factor;
+        break;
+      case 'autoTower':
+        // start auto tower spawns if not already
+        if (state.nextAutoTowerTime <= 0) {
+          state.nextAutoTowerTime = performance.now() + 20000; // first in 20s
+        }
+        break;
     }
+
     renderUpgrades();
     updateStats();
   }
 
-  /*** UPGRADES PANEL TOGGLE ***/
+  /*** UPGRADES PANEL TOGGLE (U key + button) ***/
   function toggleUpgrades(){
-    // On small screens, it's a bottom sheet; on desktop it's always visible, but
-    // tapping U can "flash" focus or simply do nothing. We'll just toggle a CSS class.
-    upgradesPanel.classList.toggle('open');
+    if (window.innerWidth <= 800){
+      upgradesPanel.classList.toggle('open');
+    } else {
+      upgradesPanel.scrollIntoView({behavior:'smooth',block:'nearest'});
+    }
   }
   toggleUpgradesBtn.addEventListener('click', toggleUpgrades);
 
   /*** TOWERS & ARROWS ***/
   function towersStep(dt, now){
+    // auto tower factory (incremental upgrade)
+    if (state.nextAutoTowerTime > 0 && now >= state.nextAutoTowerTime){
+      const r = rectForCanvas();
+      const tx = rand(60, r.width-60);
+      const ty = rand(60, r.height-60);
+      state.towers.push({x:tx,y:ty,lastShot:0});
+      state.nextAutoTowerTime = now + 20000; // next in 20s
+    }
+
     // towers firing
     for (const t of state.towers){
-      // find nearest hazard in range
       let best = null;
       let bestDist = Infinity;
       for (const h of state.hazards){
@@ -616,8 +703,8 @@
         }
       }
       if (!best) continue;
-      const cooldown = 800 / state.towerFireRate; // ms
-      if (now - (t.lastShot||0) >= cooldown){
+      const cooldownMs = 800 / state.towerFireRate;
+      if (now - (t.lastShot || 0) >= cooldownMs){
         t.lastShot = now;
         const ang = Math.atan2(best.y - t.y, best.x - t.x);
         state.arrows.push({
@@ -628,41 +715,45 @@
         });
       }
     }
-    // move arrows
+
+    // move arrows & damage hazards (1 damage per hit)
     for (let i=state.arrows.length-1;i>=0;i--){
       const a = state.arrows[i];
       a.x += a.vx*dt;
       a.y += a.vy*dt;
-      if (a.x<0 || a.x>canvas.clientWidth || a.y<0 || a.y>canvas.clientHeight){
+
+      if (a.x < 0 || a.x > canvas.clientWidth ||
+          a.y < 0 || a.y > canvas.clientHeight) {
         state.arrows.splice(i,1);
         continue;
       }
-      // collision vs hazards
-      let hitSomething = false;
+
+      let hit = false;
       for (let j=state.hazards.length-1;j>=0;j--){
         const h = state.hazards[j];
         if (dist2(a,h) < (a.radius + h.radius)**2){
-          // 1 damage
-          h.hp -= 1;
-          hitSound();
+          h.hp -= 1; // 1 damage standard
+          if (audioCtx && !muted) hitSound();
           if (h.hp <= 0){
+            const reward = 5 * h.maxHp * state.hazardRewardMultiplier;
+            state.score += reward;
+            state.banked += reward * 0.3; // small extra bank
             state.hazards.splice(j,1);
-            state.score += 5 * h.maxHp; // reward bonus for tougher enemies
           }
           state.arrows.splice(i,1);
-          hitSomething = true;
+          hit = true;
           break;
         }
       }
-      if (hitSomething) continue;
+      if (hit) continue;
     }
   }
 
-  /*** MAIN UPDATE ***/
+  /*** UPDATE ***/
   function update(dt, now){
-    // input movement
     const p = state.player;
     const prevX = p.x, prevY = p.y;
+
     let dx=0,dy=0;
     if (state.keys['arrowleft']||state.keys['a']) dx-=1;
     if (state.keys['arrowright']||state.keys['d']) dx+=1;
@@ -673,17 +764,18 @@
       p.x += (dx/len)*p.speed*dt;
       p.y += (dy/len)*p.speed*dt;
     }
+
     const r = rectForCanvas();
     p.x = clamp(p.x, p.radius, r.width - p.radius);
     p.y = clamp(p.y, p.radius, r.height - p.radius);
 
-    // after-image trail when moving
+    // after-image trail while moving
     const moveDist2 = (p.x-prevX)**2 + (p.y-prevY)**2;
-    if (moveDist2 > 1){ // if moved meaningfully
+    if (moveDist2 > 1){
       state.trail.push({x:p.x,y:p.y,life:1.0});
     }
     for (let i=state.trail.length-1;i>=0;i--){
-      state.trail[i].life -= dt*4; // fade speed
+      state.trail[i].life -= dt*4;
       if (state.trail[i].life <= 0) state.trail.splice(i,1);
     }
 
@@ -708,16 +800,17 @@
       state.lastHazardSpawn = now;
     }
 
-    // towers & projectiles
+    // towers & arrows
     towersStep(dt, now);
 
-    // coin collisions with player
+    // coin collisions
     for (let i=state.coins.length-1;i>=0;i--){
       const c = state.coins[i];
       if (dist2(p,c) < (p.radius + c.radius)**2){
         state.coins.splice(i,1);
-        state.score += 10;
-        state.banked += 10;
+        const gain = 10 * state.coinMultiplier;
+        state.score += gain;
+        state.banked += gain;
         if (audioCtx && !muted) coinSound();
       }
     }
@@ -726,7 +819,6 @@
     for (let i=state.hazards.length-1;i>=0;i--){
       const h = state.hazards[i];
       if (dist2(p,h) < (p.radius + h.radius)**2){
-        // remove hazard and damage player by 1 life
         state.hazards.splice(i,1);
         state.lives -= 1;
         if (state.lives <= 0){
@@ -744,7 +836,7 @@
   function draw(){
     ctx.clearRect(0,0,canvas.clientWidth,canvas.clientHeight);
 
-    // after-image trail (draw first)
+    // trail
     for (const t of state.trail){
       const alpha = t.life * 0.5;
       ctx.beginPath();
@@ -765,19 +857,17 @@
       ctx.fill();
     }
 
-    // hazards (with HP ring)
+    // hazards with HP rings
     for (const h of state.hazards){
       ctx.beginPath();
       ctx.arc(h.x,h.y,h.radius,0,Math.PI*2);
       ctx.fillStyle = h.color;
       ctx.fill();
-
-      // HP ring: show remaining hp as arc
       if (h.maxHp > 1){
         const frac = h.hp / h.maxHp;
         ctx.beginPath();
-        ctx.arc(h.x,h.y,h.radius+3,-Math.PI/2,-Math.PI/2 + frac*2*Math.PI);
-        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+        ctx.arc(h.x,h.y,h.radius+3,-Math.PI/2,-Math.PI/2+frac*2*Math.PI);
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
         ctx.lineWidth = 2;
         ctx.stroke();
       }
@@ -789,11 +879,10 @@
       ctx.arc(t.x,t.y,14,0,Math.PI*2);
       ctx.fillStyle = '#4ea5ff';
       ctx.fill();
-      // subtle base
       ctx.beginPath();
-      ctx.arc(t.x,t.y,20,0,Math.PI*2);
-      ctx.strokeStyle = 'rgba(78,165,255,0.3)';
-      ctx.lineWidth = 2;
+      ctx.arc(t.x,t.y,state.towerRange,0,Math.PI*2);
+      ctx.strokeStyle = 'rgba(78,165,255,0.18)';
+      ctx.lineWidth = 1;
       ctx.stroke();
     }
 
@@ -805,27 +894,24 @@
       ctx.fill();
     }
 
-    // player with :3 anime face
+    // player with anime :3 face
     const p = state.player;
     ctx.beginPath();
     ctx.arc(p.x,p.y,p.radius,0,Math.PI*2);
     ctx.fillStyle = 'rgba(110,210,255,0.98)';
     ctx.fill();
 
-    // Eyes
+    // eyes
     ctx.fillStyle = '#071021';
     ctx.beginPath(); ctx.arc(p.x-6, p.y-4, 3, 0, Math.PI*2); ctx.fill();
     ctx.beginPath(); ctx.arc(p.x+6, p.y-4, 3, 0, Math.PI*2); ctx.fill();
 
-    // :3 mouth (little wedge)
-    ctx.beginPath();
-    ctx.moveTo(p.x-4, p.y+5);
-    ctx.lineTo(p.x,   p.y+8);
-    ctx.lineTo(p.x+4, p.y+5);
-    ctx.strokeStyle = '#071021';
-    ctx.lineWidth = 1.6;
-    ctx.lineCap = 'round';
-    ctx.stroke();
+    // "3" mouth
+    ctx.fillStyle = '#071021';
+    ctx.font = '10px "Arial", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('3', p.x, p.y+7);
   }
 
   /*** STATS ***/
@@ -849,7 +935,7 @@
     requestAnimationFrame(loop);
   }
 
-  /*** BUTTONS / START / PAUSE ***/
+  /*** BUTTONS ***/
   startBtn.addEventListener('click', () => {
     if (!audioCtx){ initAudio(); audioCtx.resume && audioCtx.resume().catch(()=>{}); }
     state.running = true;
@@ -863,9 +949,12 @@
     state.arrows = [];
     state.trail = [];
     state.idleRate = 0;
+    state.coinMultiplier = 1;
+    state.hazardRewardMultiplier = 1;
     state.towerFireRate = 1.0;
     state.towerProjectileSpeed = 320;
     state.towerRange = 180;
+    state.nextAutoTowerTime = 0;
 
     const r = rectForCanvas();
     state.player.x = r.width/2;
@@ -887,7 +976,7 @@
     requestAnimationFrame(loop);
   });
 
-  pauseBtn.addEventListener('click', ()=>{
+  pauseBtn.addEventListener('click', () => {
     if (!state.running) return;
     state.paused = !state.paused;
     if (!state.paused){
@@ -899,12 +988,12 @@
     }
   });
 
-  muteBtn.addEventListener('click', ()=>{
+  muteBtn.addEventListener('click', () => {
     if (!audioCtx){ initAudio(); audioCtx.resume && audioCtx.resume().catch(()=>{}); }
     setMusicMuted(!muted);
   });
 
-  // initial
+  // initial UI
   renderUpgrades();
   updateStats();
 })();
